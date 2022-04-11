@@ -1,3 +1,5 @@
+import time
+
 def exp_to_index(exp):
     s=str(exp)
     s=s.replace('(','')
@@ -6,20 +8,20 @@ def exp_to_index(exp):
     s=s.replace(',', '_')
     return s
 
-def create_polynomials(R,q,d,l,a,b):
+def create_polynomials(R,q,d,l,u,alpha):
+    n=len(u)
     insieme_esponenti = set()
     l_new = []
     for p in l:
-        p=p(sum([R(a[i])*R('z%d' % i) for i in range(d)])+b)
+        (a,b) = oracle_LWE(u, alpha)
+        p=p(sum([R(a[i])*R('z%d' % i) for i in range(n)])+b)
         l_new.append(p)
         dct = p.dict()
         n_monomi = len(dct)
-        print(n_monomi)
         for i in range(n_monomi):      
             item = dct.popitem()
             insieme_esponenti.update([item[0]])
-    #ORIGINALE
-    return (l_new,PolynomialRing(GF(q),[('y%s' % exp_to_index(esponenti)) for esponenti in insieme_esponenti] + ['z%d' % i for i in range(d)]))
+    return (l_new,PolynomialRing(GF(q),[('y%s' % exp_to_index(esponenti)) for esponenti in insieme_esponenti] + ['z%d' % i for i in range(n)]), insieme_esponenti)
 
 def linearize(S,l):  
     l_new=[]
@@ -28,7 +30,6 @@ def linearize(S,l):
         indici_soluzione = {}
         dct = p.dict()
         n_monomi = len(dct)
-        print(n_monomi)
         for i in range(n_monomi):      
             item = dct.popitem()
             esponenti = item[0]
@@ -38,10 +39,10 @@ def linearize(S,l):
     return l_new
 
 def oracle_LWE(u, alpha):
-    m = len(u)
+    n = len(u)
     G = vector(u).base_ring()
     q = G.characteristic()
-    V = G^m
+    V = G^n
     a = V.random_element()
     sigma = alpha*q
     N = RealDistribution('gaussian', sigma)
@@ -57,36 +58,71 @@ def LWE_polynomial (q,d):
         poly = poly*(t^2 - (i+1)^2)      
     return poly 
 
+def solve_linear_system_old (l, insieme_esponenti):
+    start_time = time.time()
+    print('Inizio a misurare il tempo!', start_time)
+    variables = ['y%s' % exp_to_index(esponente) for esponente in insieme_esponenti]
+    soluzione = solve(l, var(*variables))
+    print("--- %s secondi ---" % (time.time() - start_time))
+    return soluzione
+
+def solve_linear_system (R,l,n,insieme_esponenti):
+    start_time = time.time()
+    print('Inizio a misurare il tempo!', start_time)
+    print(l[0])
+    variables=['y%s' % exp_to_index(esponente) for esponente in insieme_esponenti if str(esponente) != '('+ '0, '*(n-1) + '0)']
+    M_list=[]
+    for p in l:
+        M_list.append([p.coefficient(R(v)) for v in variables])
+    print(M_list)
+    M = Matrix(tuple(M_list))
+    c = vector([-p(0) for p in l])
+    soluzione = M \ c
+    print("--- %s secondi ---" % (time.time() - start_time))
+    return soluzione
+    return [0]
+def canonical_basis_exponent(j,n):
+    s= '(' 
+    for i in range(d-1):
+        s=s+('%d,' % int((i+1)==j))
+    s=s+('%d)' % int(d==j))
+    return s
+
 # TEST:
 q=17
-d=4
-R = PolynomialRing(GF(q), ['z%d' % i for i in range(d)])
-u = vector(GF(q),[1+2*i for i in range(d)])
-alpha = 5
-(a,b) = oracle_LWE(u, alpha)
+d=2
+n=5
+alpha=n^(1/6)/q
+D=2*d+1
+N=binomial(n+D,n)
+
+R = PolynomialRing(GF(q), ['z%d' % i for i in range(n)])
+u = vector(GF(q),[1+2*i for i in range(n)])
+
+z=[var('z%d' % i) for i in range(n)]
+
 poly = LWE_polynomial(q,d)
-(lista_polinomi,S) = create_polynomials(R,q,d,[poly],a,b)
-z=[var('z%d' % i) for i in range(d)]
-print('- 0')
-print(poly)
-print(poly.dict())
-print('- 1')
+l_poly=[]
+#k = ceil(N*q^2*log(q)/100)
+k = 1000
+
+print('Chiamo l\'oracolo %d volte' % k)
+print('Polinomio associato all\'oracolo: ', poly)
+
+for i in range(k):
+    l_poly.append(poly)
+
+(lista_polinomi,S,esponenti) = create_polynomials(R,q,d,l_poly,u,alpha)
+
 L = linearize(S,lista_polinomi)
+print('Linearizzato!')
+#print('Polinomi linearizzati: ', L)
+#print('Esponenti dei linearizzati: ', esponenti)
+soluzione = solve_linear_system(S,L,n,esponenti)
+print('Trovata soluzione!')
+print('Lunghezza soluzione: ', len(soluzione))
+print('Soluzione del linearizzato: ', soluzione)
 
-print(L)
-print('- 2')
-print(len(L), d)
-print('- 3')
-print('DONE')
-
-#   COSTRUIRE e_j
-#   s= '(' 
-#   for i in range(d-1):
-#       s=s+('%d,' % int((i+1)==j))
-#   s=s+('%d)' % int(d==j))
-#
-#   COSTRUIRE e_j
-#   s= '' 
-#   for i in range(d-1):
-#       s=s+('%d_' % int((i+1)==j))
-#   s=s+('%d' % int(d==j))
+stringa_soluzione= '['
+for i in range(n):
+    stringa_soluzione = stringa_soluzione + str(soluzione[list(insieme_esponenti).index(canonical_basis_exponent(i,n))])
