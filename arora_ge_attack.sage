@@ -13,8 +13,8 @@ def LWE_polynomial (q, d):
     return poly 
 
 # Oracolo associato al nostro problema
-# :param u              -> la chiave privata da recuperare
-# :param alpha          -> il parametro della distribuzione gaussiana discreta
+# :param u              -> La chiave privata da recuperare
+# :param alpha          -> Il parametro della distribuzione gaussiana discreta
 # :param bool (= False) -> Se bool=True uso una distribuzione uniforme su [-d;+d] 
 # :param d (= 1)        -> Se bool=True uso una distribuzione uniforme su [-d;+d] 
 def oracle_LWE(u, alpha, bool=False, d=1):
@@ -41,8 +41,8 @@ def oracle_LWE(u, alpha, bool=False, d=1):
 # :param bool               -- Se bool=True, scelgo i b_i mediante una distribuzione uniforme su [-d; +d] 
 # :param d                  -- Se bool=True, l'intervallo su cui vengono scelti i b_i è [-d; +d]
 # :return (l_new,exp_set):
-#         l_new             -- polinomi nell'anello polinomiale R valutati in a*z+b 
-#         exp_set           -- insieme contenente tutti gli esponenti associati alle variabili z_i dei monomi dei polinomi di l
+#         l_new             -- Polinomi nell'anello polinomiale R valutati in a*z+b 
+#         exp_set           -- Insieme contenente tutti gli esponenti associati alle variabili z_i dei monomi dei polinomi di l
 def create_polynomials(R, l, u, alpha, bool=False, d=1):
     n=len(u)
 
@@ -69,9 +69,9 @@ def create_polynomials(R, l, u, alpha, bool=False, d=1):
 #       'y%s' % exp_to_index(e) -> y1_2_3_4
 def exp_to_index(exp):
     s = str(exp)
-    s = s.replace('(', '')     #Elimino parentesi
+    s = s.replace('(', '')      #Elimino parentesi
     s = s.replace(')', '')
-    s = s.replace(', ', '_')  #Sostituisco virgole con underscore
+    s = s.replace(', ', '_')    #Sostituisco virgole con underscore
     return s
 
 # Linearizza una lista l di polinomi portandoli nell'anello polinomiale S
@@ -93,7 +93,7 @@ def linearize(S, L):
 # :param L                  -- Lista di polinomi con cui creare il sistema
 # :param exp_list           -- Lista esponenti associati ai monomi presenti nei polinomi di L
 # :param n                  -- Numero di indici delle variabili
-# :return (M,v)             -- Matrice e vettore tali che il nostro sistema corrisponda alle soluzioni per x di M*x = v
+# :return (M,v)             -- Matrice e vettore del nostro sistema lineare da risolvere M*x = v
 def create_system(L, exp_list, n):
     variables = ['y%s' % exp_to_index(exp_monomial) for exp_monomial in exp_list if str(exp_monomial) != '('+ '0, '*(n-1) + '0)']
     R = (L[0]).parent()
@@ -117,8 +117,10 @@ def canonical_basis_exponent(j, n):
     s = s + ('%d)' % (n == j))
     return s
 
-# Sceglie il valore di d e del numero m di chiamate da fare all'oracolo per ottenere, con alta probabilità, un sistema che possiede soluzione che corrisponda al vettore segreto
-# In particolare, sappiamo che se prendiamo e^(o(l^2)) sample la distribuzione del nostro oracolo avrà una probabilità di essere maggiore di l*alpha*q trascurabile
+# Sceglie il valore di d e del numero m di chiamate da fare all'oracolo per ottenere, con alta probabilità, un sistema che possiede 
+# soluzione che corrisponda al vettore segreto.
+# In particolare, sappiamo che se prendiamo e^(o(l^2)) sample la distribuzione del nostro oracolo avrà una probabilità di essere 
+# maggiore di l*alpha*q trascurabile.
 # Inoltre il nostro numero di sample deve essere O(binomial(n+d,n)*alpha*q^2*log(q)).
 # ---
 # La nostra scelta di d e m avviene scorrendo d come parametro intero e assumendo che:
@@ -133,7 +135,9 @@ def pick_values(n, q, alpha, C):
     for d in range(1, (q-1)/2):
         N = binomial(n+d, n)
         e = float(log(C*N*coeff))*sigma - d
-        if e < 0:   # Se e < 0 vuol dire che mi trovo in una distribuzione per cui, con alta probabilità, tutti i valori di eta che ottengo sono minori o uguali a d                         
+        # Se e < 0 vuol dire che mi trovo in una distribuzione per cui, con alta probabilità, 
+        # tutti i valori di eta che ottengo sono minori o uguali a d                         
+        if e < 0:   
             best_d = d
             m = ceil(C*N*coeff)
             return(best_d,m)
@@ -149,12 +153,15 @@ def pick_values(n, q, alpha, C):
 # :param n              -- Mumero di coordinate del vettore segreto
 # :param alpha          -- Parametro della distribuzione gaussiana discreta con cui genero gli errori
 # :param C (= 1)        -- Coefficiente da inserire per calcolare il numero di sample
-# :param bool (= False) -- Se bool=True, scelgo i b_i delle coppie (a_i,b_i) generate dall'oracolo mediante una distribuzione uniforme su un intervallo [-d; +d]
+# :param bool (= False) -- Se bool=True, scelgo i b_i delle coppie (a_i,b_i) generate dall'oracolo mediante 
+#                          una distribuzione uniforme su un intervallo [-d; +d]
 # :return u             -- Vettore segreto dell'oracolo
 def arora_ge_attack(q, n, alpha, C=1, bool = False):
-    if (q*alpha > sqrt(n)):
-        warnings.warn("Il tasso di rumore del tuo oracolo è superiore alla soglia n^0.5: l'algoritmo che stai eseguendo non ha complessità sub-esponenziale.")
     
+    if (q*alpha > sqrt(n)):
+        warnings.warn("Il tasso di rumore del tuo oracolo è superiore alla soglia n^0.5: "+\
+                      "l'algoritmo che stai eseguendo non ha complessità sub-esponenziale.")
+        
     (d,k) = pick_values(n, q, alpha, C)    
     # PER CONTROLLARE LA QUALITA' DEI PARAMETRI SCELTI:
     # print('k*alpha*q = %f' % (float(log(k))*alpha*q))
@@ -170,8 +177,10 @@ def arora_ge_attack(q, n, alpha, C=1, bool = False):
     # Genero il sistema de polinomi in z p(a_i*z + b_i) dove p(t):=t(t-1)(t+1)...(t-d)(t+d)
     poly = LWE_polynomial(q, d)
     (polynomial_list,exp_list) = create_polynomials(R, [poly]*k, u, alpha, bool, d)
-    S = PolynomialRing(GF(q),[('y%s' % exp_to_index(exp_monomial)) for exp_monomial in exp_list]) # Anello polinomiale in cui vivranno i polinomi linearizzati
-    exp_list = [str(exp) for exp in exp_list] # Converto gli esponenti in stringhe per lavorarci più facilmente
+    # Anello polinomiale in cui vivranno i polinomi linearizzati
+    S = PolynomialRing(GF(q),[('y%s' % exp_to_index(exp_monomial)) for exp_monomial in exp_list])
+    # Converto gli esponenti in stringhe per lavorarci più facilmente
+    exp_list = [str(exp) for exp in exp_list] 
 
     # Linearizzo il sistema di polinomi
     L = linearize(S, polynomial_list)
@@ -184,7 +193,6 @@ def arora_ge_attack(q, n, alpha, C=1, bool = False):
     (M,c) = create_system(L, exp_list, n)
     soluzione = M \ c
     print("--- %.2f secondi impiegati ---" % (time.time() - start_time))
-    # print('Soluzione del linearizzato: %s' % str(soluzione))
 
     # Stampo vettore segreto estratto dalla soluzione sistema
     exp_list = [exp_monomial for exp_monomial in exp_list if str(exp_monomial) != '(' + '0, '*(n-1) + '0)']
