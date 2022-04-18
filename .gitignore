@@ -1,2 +1,3 @@
-
-main.sage.py
+*.py
+*.spyx
+lwe.sage
