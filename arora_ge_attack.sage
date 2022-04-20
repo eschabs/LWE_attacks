@@ -107,37 +107,17 @@ def pick_values(n, q, alpha, C):
     """
     Sceglie il valore di d e del numero m di chiamate da fare all'oracolo per ottenere, con elevata probabilità, un sistema che possieda 
     un'unica soluzione (esatta).
-    Sappiamo due cose: 
-    - se prendiamo e^(o(l^2)) sample, la distribuzione degli errori scelti dal nostro oracolo avrà una probabilità trascurabile di 
-      superare in modulo l*alpha*q, perciò se troviamo una soluzione questa sarà molto probabilmente corretta;
-    - se m = O(binomial(n+d,n)*alpha*q^2*log(q)), allora il sistema che andremo a risolvere avrà almeno una soluzione.
-    Dobbiamo quindi soddisfare entrambe le condizioni per recuperare con alta probabilità il segreto.
-    COME SCEGLIAMO d E m?
-    Il valore di d è compreso tra 1 e (q-1)/2, scorriamo perciò tutte le possibilità di d e cerchiamo di capire quale potrebbe essere la migliore.
-    Assumiamo, posta C una costante, le seguenti due cose:
-    - m = C*binomial(n+d,n)*alpha*q^2*log(q)
-    - m ≈ e^l = e^(o(l^2)) => d = l*alpha*q ≈ log(m)*alpha = log(C*binomial(n+d,n)*alpha*q^2*log(q))*alpha*q 
-    Prendiamo perciò tra le coppie di valori (d, m) individuati da questi conti, quella che minimizza il rapporto tra d e log(m)*alpha*q 
+    :param q                -- Ordine del campo finito in cui vivono gli elementi del vettore segreto
+    :param n                -- Mumero di coordinate del vettore segreto
+    :param alpha            -- Parametro della distribuzione gaussiana discreta con cui genero gli errori
+    :param C                -- Moltiplicatore del numero di sample
+    :return (d,m)           -- Coppia con d parametro che corrisponde all'upperbound stimato degli errori generati dall'oracolo e m numero di sample da richiedere
     """
-    best_d = 1
-    best_e = math.inf
-    coeff = alpha*q^2*float(log(q))
-    sigma = alpha*q
-    for d in range(1, (q-1)/2):
-        N = binomial(n+d, n)
-        e = float(log(C*N*coeff))*sigma - d
-        # Se e < 0 vuol dire che mi trovo in una distribuzione per cui, con alta probabilità, 
-        # tutti i valori di eta che ottengo sono minori o uguali a d                         
-        if e < 0:   
-            best_d = d
-            m = ceil(C*N*coeff)
-            return(best_d,m)
-        else:
-            if e/d < best_e/best_d:
-                best_d = d
-                best_e = e
-    m = ceil(C*binomial(n+best_d, n)*coeff)
-    return (best_d,m)
+    sigma = (alpha * q) / (sqrt(2 * RR(pi)))
+    d = 4 * sigma^2 * RR(log(n))
+    D = 2*d + 1
+    m = C * binomial(n+D,n) * alpha * q^2 * RR(log(q))
+    return (ceil(d),ceil(m))
 
 def canonical_basis_exponent(j, n):
     """
@@ -150,30 +130,47 @@ def canonical_basis_exponent(j, n):
     s = s + ('%d)' % (n == j))
     return s
 
+def balance(e, q=None):
+    """
+    Rappresenta l'oggetto e a termini in GL(q) prendendo i rappresentanti 
+    dei suoi termini in [-(q-1)/2, ... , +(q-1)/2] invece che in [1, ... , q-1]
+    """
+    try:
+        p = parent(e).change_ring(ZZ)
+        return p([balance(e_) for e_ in e])
+    except (TypeError, AttributeError):
+        if q is None:
+            try:
+                q = parent(e).order()
+            except AttributeError:
+                q = parent(e).base_ring().order()
+        return ZZ(e)-q if ZZ(e)>q/2 else ZZ(e)
+
+
 def arora_ge_attack(q, n, alpha, C=1):
     """
     Dato un oracolo del problema LWE, ne recupera il suo vettore segreto
     :param q                -- Ordine del campo finito in cui vivono gli elementi del vettore segreto
     :param n                -- Mumero di coordinate del vettore segreto
     :param alpha            -- Parametro della distribuzione gaussiana discreta con cui genero gli errori
-    :param C (= 1)          -- Coefficiente da inserire per calcolare il numero di sample
+    :param C (= 1)          -- Moltiplicatore numero di sample
     :return u               -- Segreto dell'oracolo
     """
     if (q*alpha > sqrt(n)):
         warnings.warn("Il tasso di rumore del tuo oracolo è superiore alla soglia n^0.5: "+\
                       "l'algoritmo che stai eseguendo non ha complessità sub-esponenziale.")
         
-    (d,k) = pick_values(n, q, alpha, C)    
+    (d,m) = pick_values(n, q, alpha, C)    
 
     oracle_LWE = LWE(n=n, q=q, D=DiscreteGaussianDistributionIntegerSampler(alpha))
     G = GF(q)
     u = oracle_LWE._LWE__s
-    print('Il segreto è: %s' % str(list(u)))
+    print('Il segreto è: %s' % str(balance(u)))
 
     # Genero il sistema di polinomi {p(a_i*z + b_i)}_{i=1,...,n} dove z=[z1,...,zn] e p(t):=t(t-1)(t+1)...(t-d)(t+d)
     poly = LWE_polynomial(G, d)
-    print('Chiamo l\'oracolo %d volte' % k)
-    (polynomial_list,exp_list) = create_polynomials([poly]*k, n, oracle_LWE)
+    print('Chiamo l\'oracolo %d volte' % m)
+    (polynomial_list,exp_list) = create_polynomials([poly]*m, n, oracle_LWE)
 
     L = linearize(polynomial_list, exp_list)
     print('Terminato il processo di linearizzazione! Ho ottenuto un sistema polinomiale in %d variabili' % (len(exp_list) - 1))
@@ -188,4 +185,4 @@ def arora_ge_attack(q, n, alpha, C=1):
     secret_vector= list([])
     for i in range(1, n+1):
         secret_vector.append(soluzione[exp_list.index(canonical_basis_exponent(i,n))])
-    return vector(secret_vector)
+    return balance(vector(secret_vector))
