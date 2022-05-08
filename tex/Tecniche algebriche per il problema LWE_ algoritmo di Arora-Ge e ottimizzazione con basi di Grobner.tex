@@ -1,0 +1,115 @@
+% PREAMBOLO
+
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage[backend=biber, style=alphabetic]{biblatex}
+\usepackage{enumitem}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{bm}
+\usepackage{tikz}
+\usepackage{marvosym}
+\usepackage{color}
+\usepackage[hidelinks]{hyperref}
+%\usepackage{xr}
+\usepackage{verbatim}
+\hypersetup{
+	colorlinks,
+	citecolor=black,
+	filecolor=black,
+	linkcolor=blue,
+	urlcolor=blue
+}
+\usetikzlibrary{fit,matrix,positioning}
+
+% AMBIENTI
+
+\theoremstyle{plain} 
+\newtheorem{proposizione}{Proposizione}[section]
+\newtheorem{lemma}{Lemma}[proposizione]
+\newtheorem{teorema}{Teorema}[section]
+\newtheorem{osservazione}{Osservazione}[proposizione]
+\newtheorem*{osservazione*}{Osservazione}
+
+\theoremstyle{definition}
+\newtheorem{esercizio}{Esercizio}[section]
+\newtheorem{definizione}{Definizione}[section]
+\newtheorem{algoritmo}{Algoritmo}[section]
+
+\theoremstyle{remark}
+\newtheorem{corollario}{Corollario}[proposizione]
+\newtheorem*{corollario*}{Corollario}
+
+% MACRO
+
+\newcommand{\Pb}{\mathbb{P}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\F}[1]{\mathbb{F}_{#1}}
+
+\newcommand{\quoziente}[2]{{\raisebox{.2em}{$#1$}\left/\raisebox{-.2em}{$#2$}\right.}}
+
+\newcommand{\overbar}[1]{\mkern1.5mu\overline{\mkern-1.5mu#1\mkern-1.5mu}\mkern 1.5mu}
+
+\newcommand{\round}[1]{\ensuremath{\lfloor#1\rceil}}
+
+\addbibresource{bibliografia.bib}
+
+\title{Tecniche algebriche per il problema Learning With Errors: algoritmo di Arora-Ge e ottimizzazione con basi di Gröbner}
+\author{Ludovico Piazza}
+
+
+\begin{document}
+	\maketitle
+	
+	\begin{abstract}
+		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+	\end{abstract}
+	
+	\tableofcontents
+	
+	\newpage
+	
+	\section{Il problema: Learning With Errors (LWE)}
+	Learning With Errors (LWE) è un noto problema computazionale introdotto da Regev nel 2005 in \cite{Reg05}. Una delle principali caratteristiche che rende ne interessante lo studio è la sua complessità risolutiva: sotto opportune ipotesi sui parametri, la sua risoluzione può essere ricondotta mediante una riduzione polinomiale quantistica a quella di due famosi problemi sui reticoli (GapSVP$_\gamma$ e SIVP$_\gamma$) che si congettura siano difficili da risolvere anche usando computer quantistici. Ciò porta LWE a candidarsi come fondamento per la costruzione di crittosistemi post-quantistici.\\
+	
+	Preliminarmente, diamo un paio di definizioni su due distribuzioni che ci serviranno in seguito.
+	
+	\begin{definizione}[\textbf{Distribuzione gaussiana discreta}]
+		Dato $\alpha \in \R_{>0}$ chiamiamo distribuzione gaussiana discreta la distribuzione $\psi_\alpha$ su $\Z/(q)$ che:
+		\begin{itemize}
+			\item prende un valore $r\in\R$ mediante una distribuzione gaussiana con deviazione standard $\sigma=\alpha q$;
+			\item arrotonda $r$ all'intero più vicino, ottenendo $\round{r}$;
+			\item proietta $\round{r}$ in $\Z/(q)$, ottenendo $\round{r}~(\mathrm{mod}~q)$.
+		\end{itemize} 
+	\end{definizione}
+	
+	\begin{definizione}[\textbf{Distribuzione LWE}]
+			Dato un vettore $\bm{s}\in {\Z/(q)}^n$ che chiamiamo \textbf{segreto}, definiamo la distribuzione LWE come la distribuzione $\mathrm{A}_{\bm{s},\chi}$ su ${\Z/(q)}^n \times \Z/(q)$ ottenuta prendendo $\bm{a}$ uniformemente da ${\Z/(q)}^n$, lo scalare $e$ con distribuzione $\chi$ da $\Z/(q)$ e dando come risultato $(\bm{a},\langle \bm{s}; \bm{a}\rangle + e)$.\\
+	\end{definizione}
+	
+	L'idea che sta alla base della variante del problema che vogliamo studiare è che la distribuzione LWE, definita qui sopra, risulta molto simile ad una distribuzione uniforme, pertanto riuscire ad ottenere informazioni sul suo vettore segreto diventa estremamente difficile.\\
+	Qui di seguito la definiamo nel dettaglio: 
+	
+	\begin{definizione}[\textbf{Search-LWE}$_{n,q,\alpha,m}$]
+		Fissato $\alpha \in \R_{>0}$, prendiamo $\textbf{s}$ uniformemente da ${\Z/(q)}^n$ ed $m$ coppie indipendenti $(\bm{a}_i,b_i)$ da ${\Z/(q)}^n \times \Z/(q)$ mediante la distribuzione $\mathrm{A}_{\textbf{s},\psi_\alpha}$. \\Il problema $\mathrm{Search}$-$\mathrm{LWE}_{n,q,\alpha,m}$ consiste nel ricavare $\textbf{s}$ avendo a disposizione soltanto le $m$ coppie $(\bm{a}_i,b_i)$.
+	\end{definizione} 
+	
+	Ad ogni problema Search-LWE$_{n,q,\alpha,m}$ associamo inoltre il valore $\sigma=\alpha q$ (\textbf{tasso di rumore}) in quanto, come vedremo tra poco, esso ne caratterizza la complessità computazionale.
+	
+	\section{Un algoritmo algebrico: l'attacco di Arora-Ge}
+	Le soluzioni più immediate che vengono in mente al problema, basate ad esempio su algoritmi di massima verosimiglianza, sono tutte esponenziali. Il primo algoritmo sub-esponenziale è stato trovato da Sanjeev Arora e Rong Ge in \cite{AroraGe}. La complessità computazionale dell'algoritmo, tuttavia, è sub-esponenziale soltanto a condizione che il \textit{tasso di rumore} sia inferiore $\sqrt{n}$.
+	
+	\section{Ottimizzazione mediante basi di Gröbner}
+	~
+	% \section{Confronto delle performance computazionali}
+	% ~
+	%\section{Conclusioni}
+	% ~
+	
+	\newpage
+	\printbibliography
+\end{document}

@@ -1,3 +1,13 @@
 *.py
 *.spyx
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.idx
+*.log
+*.out
+*.xml
+*.gz
+*.toc
 lwe.sage
